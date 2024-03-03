@@ -2,6 +2,13 @@
 
 Fast blurring for Roblox EditableImage
 
+*Blur Radius 1*
+![image](https://github.com/boatbomber/EditableImageBlur/assets/40185666/12735c3f-c81b-4c4e-ae7c-e1258cb7ff2d)
+*Blur Radius 5*
+![image](https://github.com/boatbomber/EditableImageBlur/assets/40185666/baa961cb-045e-4e19-a32a-5612a9f330f9)
+*Blur Radius 15*
+![image](https://github.com/boatbomber/EditableImageBlur/assets/40185666/3bc1203e-0e3a-40b3-a67e-f53eb039b38f)
+
 ## Installation
 
 Via [wally](https://wally.run):
