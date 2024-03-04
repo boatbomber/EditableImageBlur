@@ -1,6 +1,8 @@
 # EditableImageBlur
 
-Fast blurring for Roblox EditableImage
+Fast blurring for Roblox EditableImage.
+
+[Please consider supporting my work.](https://github.com/sponsors/boatbomber)
 
 *Blur Radius 1*
 ![image](https://github.com/boatbomber/EditableImageBlur/assets/40185666/12735c3f-c81b-4c4e-ae7c-e1258cb7ff2d)
