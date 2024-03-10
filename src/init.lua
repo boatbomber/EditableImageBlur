@@ -60,8 +60,8 @@ local function performBoxBlur(pixelData, imageWidth, imageHeight, blurRadius, sk
 				local targetIndex = startIndex + (column - 1) * 4
 				-- Slide window
 				local nextIndex = math.min(targetIndex + radiusTimesFour, stopIndex)
-				local lastIndex = math.max(targetIndex - radiusPlusOneTimesFour, startIndex)
-				accumulator += pixelData[nextIndex] - pixelData[lastIndex]
+				local prevIndex = math.max(targetIndex - radiusPlusOneTimesFour, startIndex)
+				accumulator += pixelData[nextIndex] - pixelData[prevIndex]
 				-- Update current pixel
 				pixelData[targetIndex] = accumulator * inverseArea
 			end
@@ -88,8 +88,8 @@ local function performBoxBlur(pixelData, imageWidth, imageHeight, blurRadius, sk
 				local targetIndex = startIndex + (row - 1) * widthTimesFour
 				-- Slide window
 				local nextIndex = math.min(targetIndex + radiusTimesWidthTimesFour, stopIndex)
-				local lastIndex = math.max(targetIndex - radiusPlusOneTimesWidthTimesFour, startIndex)
-				accumulator += pixelData[nextIndex] - pixelData[lastIndex]
+				local prevIndex = math.max(targetIndex - radiusPlusOneTimesWidthTimesFour, startIndex)
+				accumulator += pixelData[nextIndex] - pixelData[prevIndex]
 				-- Update current pixel
 				pixelData[targetIndex] = accumulator * inverseArea
 			end
