@@ -1,10 +1,10 @@
 -- Based on https://blog.ivank.net/fastest-gaussian-blur.html
 
--- Calculate box sizes for a Gaussian blur based on standard deviation and number of boxes.
-local boxSizeCache = {}
-local function calculateBoxSizesForGaussian(sigma)
-	if boxSizeCache[sigma] then
-		return boxSizeCache[sigma]
+-- Calculate box radii for a Gaussian blur based on standard deviation and number of boxes
+local boxRadiiCache = {}
+local function calculateBoxRadiiForGaussian(sigma)
+	if boxRadiiCache[sigma] then
+		return boxRadiiCache[sigma]
 	end
 
 	-- Calculate the ideal width of the averaging filter to achieve a Gaussian blur effect.
@@ -16,96 +16,157 @@ local function calculateBoxSizesForGaussian(sigma)
 	end
 	local upperWidth = (lowerWidth + 1) / 2
 
-	-- Allocate sizes to the boxes based on the computed width.
-	local boxSizes = {
+	-- Allocate radii to the boxes based on the computed width.
+	local boxRadii = {
 		(lowerWidth - 1) / 2,
 		upperWidth,
 		upperWidth,
 	}
-	boxSizeCache[sigma] = boxSizes
-	return boxSizes
+	boxRadiiCache[sigma] = boxRadii
+	return boxRadii
 end
 
--- Performs a box blur on the image data.
--- To improve performance, we naively operate in-place. This means the blur is less accurate, since
--- the sliding window removals are removing the modified values. It's a subtle imperfection so it's worth the memory saved.
-local function performBoxBlur(pixelData, imageWidth, imageHeight, blurRadius, skipAlpha)
-	local inverseArea = 1 / (blurRadius + blurRadius + 1)
-	local channels = if skipAlpha then 2 else 3
-
+-- Applies a Gaussian blur to the source channel (pixelData)
+local function applyGaussianBlur(pixelData, imageWidth, imageHeight, gaussianRadius, skipAlpha)
 	-- Calculate some constants to avoid recomputing them in the loops
+	local channels = if skipAlpha then 2 else 3
+	local halfWidth = imageWidth / 2
+	local halfHeight = imageHeight / 2
 	local widthTimesFour = imageWidth * 4
-	local radiusTimesFour = blurRadius * 4
-	local radiusPlusOneTimesFour = (blurRadius + 1) * 4
-	local radiusTimesWidthTimesFour = blurRadius * widthTimesFour
-	local radiusPlusOneTimesWidthTimesFour = (blurRadius + 1) * widthTimesFour
 
-	-- Apply horizontal blur
-	for row = 1, imageHeight do
-		for colorChannel = 0, channels do -- Process each color channel independently
-			local startIndex = (row - 1) * widthTimesFour + 1 + colorChannel
-			local stopIndex = (row * imageWidth - 1) * 4 + 1 + colorChannel
-			local accumulator = 0
+	-- Compute the sizes of the boxes for the blur based on the radius
+	local boxRadii = calculateBoxRadiiForGaussian(gaussianRadius)
 
-			-- Initialize accumulator
-			for i = -blurRadius, blurRadius do
-				if i <= 0 then
-					accumulator += pixelData[startIndex]
-				elseif i > 0 then
-					accumulator += pixelData[math.min(startIndex + i * 4, stopIndex)]
+	-- Apply iterations of box blur, which together approximate a Gaussian blur
+	-- To improve performance, we naively operate in-place. This means the blur is less accurate, since
+	-- the sliding window removals are removing the modified values. It's a subtle imperfection so it's worth the memory saved.
+	for _, blurRadius in boxRadii do
+		local inverseArea = 1 / (blurRadius + blurRadius + 1)
+		local radiusTimesFour = blurRadius * 4
+		local radiusTimesWidthTimesFour = blurRadius * widthTimesFour
+
+		-- Apply horizontal blur
+		local radiusIsTooWide = blurRadius >= halfWidth
+		for row = 1, imageHeight do
+			local rowStart = (row - 1) * widthTimesFour + 1
+			local rowStop = (row * imageWidth - 1) * 4 + 1
+
+			for colorChannel = 0, channels do
+				local targetIndex = rowStart + colorChannel
+				local leftIndex = targetIndex
+
+				if radiusIsTooWide then
+					-- The radius covers the whole row, so we set each pixel to the row's average
+					local average = 0
+					for _ = 1, imageWidth do
+						average += pixelData[targetIndex]
+						targetIndex += 4
+					end
+					average /= imageWidth
+					targetIndex = leftIndex
+					for _ = 1, imageWidth do
+						pixelData[targetIndex] = average
+						targetIndex += 4
+					end
+
+					continue
+				end
+
+				local rightIndex = targetIndex + radiusTimesFour
+				local firstValue = pixelData[targetIndex]
+				local lastValue = pixelData[rowStop + colorChannel]
+				local accumulator = (blurRadius + 1) * firstValue
+
+				-- Accumulate initial pixel values for the blur effect
+				for i = 1, blurRadius - 1 do
+					accumulator += pixelData[targetIndex + i * 4]
+				end
+				-- Move through each pixel in the row
+				for _ = 0, blurRadius do
+					accumulator += pixelData[rightIndex] - firstValue
+					pixelData[targetIndex] = accumulator * inverseArea
+					rightIndex += 4
+					targetIndex += 4
+				end
+				-- Continue through the middle section of the row
+				for _ = blurRadius + 1, imageWidth - blurRadius - 1 do
+					accumulator += pixelData[rightIndex] - pixelData[leftIndex]
+					pixelData[targetIndex] = accumulator * inverseArea
+					leftIndex += 4
+					rightIndex += 4
+					targetIndex += 4
+				end
+				-- Finish at the end of the row, using the last value to fill in
+				for _ = imageWidth - blurRadius, imageWidth - 1 do
+					accumulator += lastValue - pixelData[leftIndex]
+					pixelData[targetIndex] = accumulator * inverseArea
+					leftIndex += 4
+					targetIndex += 4
 				end
 			end
+		end
 
-			for column = 1, imageWidth do
-				local targetIndex = startIndex + (column - 1) * 4
-				-- Slide window
-				local nextIndex = math.min(targetIndex + radiusTimesFour, stopIndex)
-				local prevIndex = math.max(targetIndex - radiusPlusOneTimesFour, startIndex)
-				accumulator += pixelData[nextIndex] - pixelData[prevIndex]
-				-- Update current pixel
-				pixelData[targetIndex] = accumulator * inverseArea
+		-- Apply vertical blur
+		local radiusIsTooTall = blurRadius >= halfHeight
+		for column = 1, imageWidth do
+			local columnStart = (column - 1) * 4 + 1
+			local columnStop = columnStart + (imageHeight - 1) * widthTimesFour
+
+			for colorChannel = 0, channels do
+				local targetIndex = columnStart + colorChannel
+				local leftIndex = targetIndex
+
+				if radiusIsTooTall then
+					-- The radius covers the whole column, so we set each pixel to the column's average
+					local average = 0
+					for _ = 1, imageHeight do
+						average += pixelData[targetIndex]
+						targetIndex += widthTimesFour
+					end
+					average /= imageWidth
+					targetIndex = leftIndex
+					for _ = 1, imageHeight do
+						pixelData[targetIndex] = average
+						targetIndex += widthTimesFour
+					end
+
+					continue
+				end
+
+				local rightIndex = targetIndex + radiusTimesWidthTimesFour
+				local firstValue = pixelData[targetIndex]
+				local lastValue = pixelData[columnStop + colorChannel]
+				local accumulator = (blurRadius + 1) * firstValue
+
+				-- Initial accumulation for the blur
+				for i = 1, blurRadius - 1 do
+					accumulator += pixelData[targetIndex + i * widthTimesFour]
+				end
+				-- Apply the blur vertically down the column
+				for _ = 0, blurRadius do
+					accumulator += pixelData[rightIndex] - firstValue
+					pixelData[targetIndex] = accumulator * inverseArea
+					rightIndex += widthTimesFour
+					targetIndex += widthTimesFour
+				end
+				-- Continue through the column
+				for _ = blurRadius + 1, imageHeight - blurRadius - 1 do
+					accumulator += pixelData[rightIndex] - pixelData[leftIndex]
+					pixelData[targetIndex] = accumulator * inverseArea
+					leftIndex += widthTimesFour
+					rightIndex += widthTimesFour
+					targetIndex += widthTimesFour
+				end
+				-- Complete the blur at the bottom of the column
+				for _ = imageHeight - blurRadius, imageHeight - 1 do
+					accumulator += lastValue - pixelData[leftIndex]
+					pixelData[targetIndex] = accumulator * inverseArea
+					leftIndex += widthTimesFour
+					targetIndex += widthTimesFour
+				end
 			end
 		end
 	end
-
-	-- Apply vertical blur
-	for column = 1, imageWidth do
-		for colorChannel = 0, channels do -- Process each color channel independently
-			local startIndex = (column - 1) * 4 + 1 + colorChannel
-			local stopIndex = startIndex + (imageHeight - 1) * widthTimesFour
-			local accumulator = 0
-
-			-- Initialize accumulator
-			for i = -blurRadius, blurRadius do
-				if i <= 0 then
-					accumulator += pixelData[startIndex]
-				elseif i > 0 then
-					accumulator += pixelData[math.min(startIndex + i * widthTimesFour, stopIndex)]
-				end
-			end
-
-			for row = 1, imageHeight do
-				local targetIndex = startIndex + (row - 1) * widthTimesFour
-				-- Slide window
-				local nextIndex = math.min(targetIndex + radiusTimesWidthTimesFour, stopIndex)
-				local prevIndex = math.max(targetIndex - radiusPlusOneTimesWidthTimesFour, startIndex)
-				accumulator += pixelData[nextIndex] - pixelData[prevIndex]
-				-- Update current pixel
-				pixelData[targetIndex] = accumulator * inverseArea
-			end
-		end
-	end
-end
-
--- Applies a Gaussian blur to the source channel (pixelData).
-local function applyGaussianBlur(pixelData, imageWidth, imageHeight, blurRadius, skipAlpha)
-	-- Compute the sizes of the boxes for the blur based on the radius.
-	local boxSizes = calculateBoxSizesForGaussian(blurRadius)
-
-	-- Apply three iterations of box blur, which together approximate a Gaussian blur.
-	performBoxBlur(pixelData, imageWidth, imageHeight, boxSizes[1], skipAlpha)
-	performBoxBlur(pixelData, imageWidth, imageHeight, boxSizes[2], skipAlpha)
-	performBoxBlur(pixelData, imageWidth, imageHeight, boxSizes[3], skipAlpha)
 end
 
 export type blurConfig = {
