@@ -33,79 +33,65 @@ local function performBoxBlur(pixelData, imageWidth, imageHeight, blurRadius, sk
 	local inverseArea = 1 / (blurRadius + blurRadius + 1)
 	local channels = if skipAlpha then 2 else 3
 
-	-- Apply horizontal blur.
+	-- Calculate some constants to avoid recomputing them in the loops
+	local widthTimesFour = imageWidth * 4
+	local radiusTimesFour = blurRadius * 4
+	local radiusPlusOneTimesFour = (blurRadius + 1) * 4
+	local radiusTimesWidthTimesFour = blurRadius * widthTimesFour
+	local radiusPlusOneTimesWidthTimesFour = (blurRadius + 1) * widthTimesFour
+
+	-- Apply horizontal blur
 	for row = 1, imageHeight do
-		for colorChannel = 0, channels do -- Process each color channel independently.
-			local targetIndex = (row - 1) * imageWidth * 4 + 1 + colorChannel
-			local leftIndex = targetIndex
-			local rightIndex = targetIndex + blurRadius * 4
-			local firstValue = pixelData[targetIndex]
-			local lastValue = pixelData[(row * imageWidth - 1) * 4 + 1 + colorChannel]
-			local accumulator = (blurRadius + 1) * firstValue
-			-- Accumulate initial pixel values for the blur effect.
-			for i = 0, blurRadius - 1 do
-				accumulator += pixelData[targetIndex + i * 4]
+		for colorChannel = 0, channels do -- Process each color channel independently
+			local startIndex = (row - 1) * widthTimesFour + 1 + colorChannel
+			local stopIndex = (row * imageWidth - 1) * 4 + 1 + colorChannel
+			local accumulator = 0
+
+			-- Initialize accumulator
+			for i = -blurRadius, blurRadius do
+				if i <= 0 then
+					accumulator += pixelData[startIndex]
+				elseif i > 0 then
+					accumulator += pixelData[math.min(startIndex + i * 4, stopIndex)]
+				end
 			end
-			-- Move through each pixel in the row.
-			for _ = 0, blurRadius do
-				accumulator += pixelData[rightIndex] - firstValue
+
+			for column = 1, imageWidth do
+				local targetIndex = startIndex + (column - 1) * 4
+				-- Slide window
+				local nextIndex = math.min(targetIndex + radiusTimesFour, stopIndex)
+				local lastIndex = math.max(targetIndex - radiusPlusOneTimesFour, startIndex)
+				accumulator += pixelData[nextIndex] - pixelData[lastIndex]
+				-- Update current pixel
 				pixelData[targetIndex] = accumulator * inverseArea
-				rightIndex += 4
-				targetIndex += 4
-			end
-			-- Continue through the middle section of the row.
-			for _ = blurRadius + 1, imageWidth - blurRadius - 1 do
-				accumulator += pixelData[rightIndex] - pixelData[leftIndex]
-				pixelData[targetIndex] = accumulator * inverseArea
-				leftIndex += 4
-				rightIndex += 4
-				targetIndex += 4
-			end
-			-- Finish at the end of the row, using the last value to fill in.
-			for _ = imageWidth - blurRadius, imageWidth - 1 do
-				accumulator += lastValue - pixelData[leftIndex]
-				pixelData[targetIndex] = accumulator * inverseArea
-				leftIndex += 4
-				targetIndex += 4
 			end
 		end
 	end
 
-	-- Apply vertical blur.
-	local widthTimesFour = imageWidth * 4
+	-- Apply vertical blur
 	for column = 1, imageWidth do
-		for colorChannel = 0, channels do -- Process each color channel independently.
-			local targetIndex = (column - 1) * 4 + 1 + colorChannel
-			local leftIndex = targetIndex
-			local rightIndex = targetIndex + blurRadius * widthTimesFour
-			local firstValue = pixelData[targetIndex]
-			local lastValue = pixelData[targetIndex + (imageHeight - 1) * widthTimesFour]
-			local accumulator = (blurRadius + 1) * firstValue
-			-- Initial accumulation for the blur.
-			for i = 0, blurRadius - 1 do
-				accumulator += pixelData[targetIndex + i * widthTimesFour]
+		for colorChannel = 0, channels do -- Process each color channel independently
+			local startIndex = (column - 1) * 4 + 1 + colorChannel
+			local stopIndex = startIndex + (imageHeight - 1) * widthTimesFour
+			local accumulator = 0
+
+			-- Initialize accumulator
+			for i = -blurRadius, blurRadius do
+				if i <= 0 then
+					accumulator += pixelData[startIndex]
+				elseif i > 0 then
+					accumulator += pixelData[math.min(startIndex + i * widthTimesFour, stopIndex)]
+				end
 			end
-			-- Apply the blur vertically down the column.
-			for _ = 0, blurRadius do
-				accumulator += pixelData[rightIndex] - firstValue
+
+			for row = 1, imageHeight do
+				local targetIndex = startIndex + (row - 1) * widthTimesFour
+				-- Slide window
+				local nextIndex = math.min(targetIndex + radiusTimesWidthTimesFour, stopIndex)
+				local lastIndex = math.max(targetIndex - radiusPlusOneTimesWidthTimesFour, startIndex)
+				accumulator += pixelData[nextIndex] - pixelData[lastIndex]
+				-- Update current pixel
 				pixelData[targetIndex] = accumulator * inverseArea
-				rightIndex += widthTimesFour
-				targetIndex += widthTimesFour
-			end
-			-- Continue through the column.
-			for _ = blurRadius + 1, imageHeight - blurRadius - 1 do
-				accumulator += pixelData[rightIndex] - pixelData[leftIndex]
-				pixelData[targetIndex] = accumulator * inverseArea
-				leftIndex += widthTimesFour
-				rightIndex += widthTimesFour
-				targetIndex += widthTimesFour
-			end
-			-- Complete the blur at the bottom of the column.
-			for _ = imageHeight - blurRadius, imageHeight - 1 do
-				accumulator += lastValue - pixelData[leftIndex]
-				pixelData[targetIndex] = accumulator * inverseArea
-				leftIndex += widthTimesFour
-				targetIndex += widthTimesFour
 			end
 		end
 	end
