@@ -123,7 +123,7 @@ local function applyGaussianBlur(pixelData, imageWidth, imageHeight, gaussianRad
 						average += pixelData[targetIndex]
 						targetIndex += widthTimesFour
 					end
-					average /= imageWidth
+					average /= imageHeight
 					targetIndex = leftIndex
 					for _ = 1, imageHeight do
 						pixelData[targetIndex] = average
