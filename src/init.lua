@@ -75,15 +75,15 @@ local function applyGaussianBlur(pixelData, imageWidth, imageHeight, gaussianRad
 				local rightIndex = targetIndex + radiusTimesFour
 				local firstValue = pixelData[targetIndex]
 				local lastValue = pixelData[rowStop + colorChannel]
-				local accumulator = (blurRadius + 1) * firstValue
+				local accumulator = firstValue * (blurRadius + 1)
 
 				-- Accumulate initial pixel values for the blur effect
-				for i = 1, blurRadius - 1 do
+				for i = 1, blurRadius do
 					accumulator += pixelData[targetIndex + i * 4]
 				end
 				-- Move through each pixel in the row
-				for _ = 0, blurRadius do
-					accumulator += pixelData[rightIndex] - firstValue
+				for i = 0, blurRadius do
+					accumulator += pixelData[rightIndex] - pixelData[targetIndex + i * 4]
 					pixelData[targetIndex] = accumulator * inverseArea
 					rightIndex += 4
 					targetIndex += 4
@@ -136,15 +136,15 @@ local function applyGaussianBlur(pixelData, imageWidth, imageHeight, gaussianRad
 				local rightIndex = targetIndex + radiusTimesWidthTimesFour
 				local firstValue = pixelData[targetIndex]
 				local lastValue = pixelData[columnStop + colorChannel]
-				local accumulator = (blurRadius + 1) * firstValue
+				local accumulator = firstValue * (blurRadius + 1)
 
 				-- Initial accumulation for the blur
-				for i = 1, blurRadius - 1 do
+				for i = 1, blurRadius do
 					accumulator += pixelData[targetIndex + i * widthTimesFour]
 				end
 				-- Apply the blur vertically down the column
-				for _ = 0, blurRadius do
-					accumulator += pixelData[rightIndex] - firstValue
+				for i = 0, blurRadius do
+					accumulator += pixelData[rightIndex] - pixelData[targetIndex + i * widthTimesFour]
 					pixelData[targetIndex] = accumulator * inverseArea
 					rightIndex += widthTimesFour
 					targetIndex += widthTimesFour

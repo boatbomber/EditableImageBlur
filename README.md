@@ -17,7 +17,7 @@ Via [wally](https://wally.run):
 
 ```toml
 [dependencies]
-EditableImageBlur = "boatbomber/editableimageblur@0.3.1"
+EditableImageBlur = "boatbomber/editableimageblur@0.3.2"
 ```
 
 
