@@ -4,7 +4,7 @@ Fast Gaussian-approximating blur for Roblox `EditableImage` pixel buffers.
 
 [Please consider supporting my work.](https://github.com/sponsors/boatbomber)
 
-![demo-video](./assets/blur-demo.mp4)
+https://github.com/user-attachments/assets/136503f2-e940-409b-bc6c-50eea42a268b
 
 ## Installation
 
