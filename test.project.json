@@ -1,0 +1,33 @@
+{
+  "name": "EditableImageBlurTest",
+  "tree": {
+    "$className": "DataModel",
+
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "SignalBehavior": "Deferred"
+      }
+    },
+
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+
+      "DevPackages": {
+        "$path": "DevPackages"
+      },
+
+      "Packages": {
+        "$className": "Folder",
+
+        "EditableImageBlur": {
+          "$path": "src"
+        }
+      },
+
+      "TestProject": {
+        "$path": "tests"
+      }
+    }
+  }
+}
